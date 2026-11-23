@@ -1,0 +1,102 @@
+' Diagramas de sequencia dos cenarios principais (um @startuml por diagrama).
+
+@startuml seq_efetivar_emprestimo
+title Efetivar emprestimo (Facade + State)
+skinparam shadowing false
+actor Atendente
+participant TelaTerminal
+participant TratadorDeEmprestimo
+participant FachadaCirculacao
+participant UnidadeDeTrabalho
+participant Movimentacao
+participant Acervo
+participant Livro
+Atendente -> TelaTerminal : emprestar L1 E1
+TelaTerminal -> TratadorDeEmprestimo : realizarEmprestimo(L1, E1)
+TratadorDeEmprestimo -> FachadaCirculacao : efetivarEmprestimo(L1, E1)
+FachadaCirculacao -> UnidadeDeTrabalho : executar { ... }
+activate UnidadeDeTrabalho
+FachadaCirculacao -> Movimentacao : 1.1 consultarReserva(L1, E1)
+Movimentacao --> FachadaCirculacao : reserva
+FachadaCirculacao -> Acervo : consultarLivro(L1)
+FachadaCirculacao -> Livro : 1.2 emprestar()
+note right : RESERVADO -> EMPRESTADO
+FachadaCirculacao -> Movimentacao : 1.3 removerReserva(reserva)
+FachadaCirculacao -> FachadaCirculacao : 1.4 Emprestimo.novo(...)
+FachadaCirculacao -> Movimentacao : 1.5 adicionar(emprestimo)
+FachadaCirculacao -> Acervo : atualizar(livro)
+UnidadeDeTrabalho -> UnidadeDeTrabalho : confirmar()\n(desfazer() se houver excecao)
+deactivate UnidadeDeTrabalho
+FachadaCirculacao --> TratadorDeEmprestimo : Comprovante.Emprestimo
+TratadorDeEmprestimo --> TelaTerminal : comprovante
+@enduml
+
+@startuml seq_renovar
+title Renovar emprestimo (Command + Facade + State)
+skinparam shadowing false
+actor Estudante
+participant TelaTerminal
+participant TratadorDeEmprestimo
+participant ExecutorDeSolicitacoes
+participant SolicitacaoRenovacao
+participant FachadaCirculacao
+participant Movimentacao
+participant Livro
+participant EstadoEmprestado
+participant Emprestimo
+Estudante -> TelaTerminal : renovar L1 E1
+TelaTerminal -> SolicitacaoRenovacao ** : new(id, autor, instante, L1, E1)
+TelaTerminal -> TratadorDeEmprestimo : submeter(s)
+TratadorDeEmprestimo -> ExecutorDeSolicitacoes : executar(s)
+ExecutorDeSolicitacoes -> ExecutorDeSolicitacoes : putIfAbsent(s.id)\n[id ainda nao executado]
+ExecutorDeSolicitacoes -> SolicitacaoRenovacao : executar(fachada)
+SolicitacaoRenovacao -> FachadaCirculacao : renovar(L1, E1)
+FachadaCirculacao -> Movimentacao : 1.1 consultarEmprestimo(L1, E1)
+FachadaCirculacao -> Livro : renovar(emprestimo)
+Livro -> EstadoEmprestado : renovar(livro, emprestimo)
+alt numRenovacoes < 2
+  EstadoEmprestado -> Emprestimo : atualizarDataVencimento(30)
+  EstadoEmprestado -> Livro : mudarEstado(RENOVADO)
+else guarda falsa
+  EstadoEmprestado --> FachadaCirculacao : TransicaoInvalidaException\n(nada alterado)
+end
+FachadaCirculacao -> Movimentacao : atualizar(emprestimo)
+FachadaCirculacao --> TelaTerminal : Comprovante.Renovacao
+note over ExecutorDeSolicitacoes : mesmo id de novo -> devolve o MESMO\ncomprovante, sem executar
+@enduml
+
+@startuml seq_devolucao
+title Registrar devolucao (Facade + State + Observer + Strategy + Adapter)
+skinparam shadowing false
+actor Atendente
+participant TratadorDeDevolucao
+participant FachadaCirculacao
+participant Movimentacao
+participant Livro
+participant PublicadorDevolucao
+participant OuvinteInspecao
+participant OuvinteMulta
+participant ServicoDeMultas
+participant PoliticaMulta
+participant GatewayCobranca
+participant OuvinteIndicadores
+participant OuvinteEmail
+Atendente -> TratadorDeDevolucao : registrarDevolucao(L1, E1)
+TratadorDeDevolucao -> FachadaCirculacao : registrarDevolucao(L1, E1, hoje)
+group transacao (UnidadeDeTrabalho)
+  FachadaCirculacao -> Movimentacao : 1.1 consultarEmprestimo
+  FachadaCirculacao -> Livro : devolver(data)
+  note right : EMPRESTADO/RENOVADO -> DEVOLVIDO
+  FachadaCirculacao -> Movimentacao : 1.3 adicionar(devolucao)
+end
+FachadaCirculacao -> PublicadorDevolucao : publicar(evento) [apos commit]
+PublicadorDevolucao -> OuvinteInspecao : aoDevolver(evento)
+PublicadorDevolucao -> OuvinteMulta : aoDevolver(evento)
+OuvinteMulta -> ServicoDeMultas : emitirMulta(...)
+ServicoDeMultas -> PoliticaMulta : calcular(dias)
+ServicoDeMultas -> GatewayCobranca : registrar(solicitacao)
+PublicadorDevolucao -> OuvinteIndicadores : aoDevolver(evento)
+PublicadorDevolucao -> OuvinteEmail : aoDevolver(evento)
+note right : falha aqui e capturada;\nnao afeta os demais
+FachadaCirculacao --> TratadorDeDevolucao : Comprovante.Devolucao
+@enduml

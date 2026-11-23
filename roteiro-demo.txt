@@ -1,0 +1,23 @@
+# Roteiro da demonstracao: reserva, emprestimo, renovacao, devolucao atrasada e multa.
+# Uso: mvnw -q exec:java "-Dexec.args=roteiro-demo.txt"
+hoje
+livros
+reservar L1 E1
+emprestar L1 E1
+renovar L1 E1
+reenviar
+renovar L1 E1
+renovar L1 E1
+avancar 79
+devolver L1 E1
+aguardando
+multas E1
+reservar L1 E2
+inspecionar L1 ok
+pagar MUL-1
+pagar MUL-1
+multas E1
+indicadores
+emails
+arvore
+sair

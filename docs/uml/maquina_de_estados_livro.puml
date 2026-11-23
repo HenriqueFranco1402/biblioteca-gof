@@ -1,0 +1,20 @@
+@startuml maquina_de_estados_livro
+title Maquina de estados do Livro (R01 - State)
+skinparam shadowing false
+[*] --> LIVRE
+LIVRE --> RESERVADO : reservar
+LIVRE --> REPARANDO : enviarParaReparo
+RESERVADO --> EMPRESTADO : emprestar / numRenovacoes = 0
+EMPRESTADO --> RENOVADO : renovar [numRenovacoes < 2]\n/ vencimento += 30; numRenovacoes++
+RENOVADO --> RENOVADO : renovar [numRenovacoes < 2]\n/ vencimento += 30; numRenovacoes++
+EMPRESTADO --> DEVOLVIDO : devolver
+RENOVADO --> DEVOLVIDO : devolver
+DEVOLVIDO : entry / registrarDataDevolucao
+DEVOLVIDO --> LIVRE : aprovarInspecao [bom estado]
+DEVOLVIDO --> REPARANDO : reprovarInspecao [danificado]
+REPARANDO : do / reparar
+REPARANDO --> LIVRE : concluirReparo
+REPARANDO --> INCINERADO : registrarLaudoIrrecuperavel
+INCINERADO --> [*]
+note right of DEVOLVIDO : reservar e recusado\n(livro ainda nao inspecionado)
+@enduml

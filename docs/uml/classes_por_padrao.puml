@@ -1,0 +1,332 @@
+' Diagramas de classes de cada padrao (um @startuml por padrao).
+' Renderizar: java -jar plantuml.jar -tpng classes_por_padrao.puml   (ou extensao PlantUML do VS Code / IntelliJ)
+
+@startuml R01_state
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R01 - State
+class Livro <<Contexto>> {
+  - estado : EstadoLivro
+  - numRenovacoes : int
+  + reservar()
+  + emprestar()
+  + renovar(e : Emprestimo)
+  + devolver(data : LocalDate)
+  + aprovarInspecao()
+  + reprovarInspecao()
+  + enviarParaReparo()
+  + concluirReparo()
+  + registrarLaudoIrrecuperavel()
+  + {static} reconstituir(..., nomeEstado : String) : Livro
+  ~ mudarEstado(novo : EstadoLivro)
+}
+abstract class EstadoLivro <<Estado>> {
+  + {abstract} nome() : String
+  + {static} deNome(nome : String) : EstadoLivro
+  ~ reservar(l) / emprestar(l) / renovar(l, e) / devolver(l, d)
+  ~ aprovarInspecao(l) / reprovarInspecao(l) / enviarParaReparo(l)
+  ~ concluirReparo(l) / registrarLaudoIrrecuperavel(l)
+  # recusar(l, evento)
+}
+class EstadoLivre { ~ reservar(l)\n~ enviarParaReparo(l) }
+class EstadoReservado { ~ emprestar(l) }
+class EstadoEmprestado { ~ renovar(l, e)\n~ devolver(l, d) }
+class EstadoRenovado { ~ renovar(l, e)\n~ devolver(l, d) }
+class EstadoDevolvido { ~ aprovarInspecao(l)\n~ reprovarInspecao(l) }
+class EstadoReparando { ~ concluirReparo(l)\n~ registrarLaudoIrrecuperavel(l) }
+class EstadoIncinerado
+class Renovacao { ~ {static} aplicar(l, e) }
+class Emprestimo { + atualizarDataVencimento(dias : int) }
+Livro o--> EstadoLivro : estado
+EstadoLivro <|-- EstadoLivre
+EstadoLivro <|-- EstadoReservado
+EstadoLivro <|-- EstadoEmprestado
+EstadoLivro <|-- EstadoRenovado
+EstadoLivro <|-- EstadoDevolvido
+EstadoLivro <|-- EstadoReparando
+EstadoLivro <|-- EstadoIncinerado
+EstadoEmprestado ..> Renovacao
+EstadoRenovado ..> Renovacao
+Renovacao ..> Emprestimo
+@enduml
+
+@startuml R02_strategy
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R02 - Strategy
+interface PoliticaMulta <<Estrategia>> {
+  + nome() : String
+  + calcular(diasDeAtraso : long) : Dinheiro
+}
+class PoliticaOriginal
+class PoliticaComTeto
+class PoliticaComTolerancia
+class ConfiguracaoAdministrativa {
+  + registrar(p : PoliticaMulta)
+  + definirPoliticaVigente(nome : String)
+  + politicaVigente() : PoliticaMulta
+}
+class ServicoDeMultas <<Contexto>> { + emitirMulta(s : SolicitacaoDeMulta) : Optional<Multa> }
+class Multa {
+  - valor : Dinheiro {readOnly}
+  - politicaAplicada : String {readOnly}
+}
+class Boleto { + {static} criar(multa, cpf, hoje, gateway) : Boleto\n+ enviarPorEmail(email, servico) }
+PoliticaMulta <|.. PoliticaOriginal
+PoliticaMulta <|.. PoliticaComTeto
+PoliticaMulta <|.. PoliticaComTolerancia
+ConfiguracaoAdministrativa o--> "1..*" PoliticaMulta : disponiveis
+ConfiguracaoAdministrativa --> "1" PoliticaMulta : vigente
+ServicoDeMultas --> ConfiguracaoAdministrativa
+ServicoDeMultas ..> Multa : <<cria>>
+ServicoDeMultas ..> Boleto
+@enduml
+
+@startuml R03_adapter
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R03 - Adapter
+interface GatewayCobranca <<Alvo / iCobranca>> {
+  + registrar(s : SolicitacaoCobranca) : RegistroCobranca
+  + aoReceberPagamento(receptor)
+  + banco() : String
+}
+class AdaptadorBancoA <<Adaptador>> { + registrar(s)\n~ traduzirRetorno(linha : String) }
+class AdaptadorBancoB <<Adaptador>> { + registrar(s)\n~ traduzirEvento(e : EventoPagamento) }
+class BancoAApi <<Adaptado>> { + registrarTitulo(centavos : long, cpf : long, seuNumero, AAAAMMDD : int) : int }
+class BancoBApi <<Adaptado>> { + emitirBoleto(p : PedidoBoleto) : BoletoEmitido }
+class ServicoDeMultas <<Cliente>> { + emitirMulta(...)\n+ registrarPagamento(n : NotificacaoPagamento) : boolean }
+GatewayCobranca <|.. AdaptadorBancoA
+GatewayCobranca <|.. AdaptadorBancoB
+AdaptadorBancoA o--> BancoAApi
+AdaptadorBancoB o--> BancoBApi
+ServicoDeMultas --> GatewayCobranca
+@enduml
+
+@startuml R04_facade
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R04 - Facade
+class TelaTerminal <<Interface>>
+class TratadorDeEmprestimo
+class TratadorDeDevolucao
+class FachadaCirculacao <<Fachada>> {
+  + reservar(l, e) : Comprovante.Reserva
+  + efetivarEmprestimo(l, e) : Comprovante.Emprestimo
+  + renovar(l, e) : Comprovante.Renovacao
+  + registrarDevolucao(l, e, data) : Comprovante.Devolucao
+  + registrarInspecao(l, bomEstado) : Comprovante.SituacaoLivro
+}
+class Relacionamento
+class Movimentacao
+class Acervo
+class Livro
+interface UnidadeDeTrabalho { + executar(op) }
+interface Comprovante
+TelaTerminal --> TratadorDeEmprestimo
+TelaTerminal --> TratadorDeDevolucao
+TratadorDeEmprestimo --> FachadaCirculacao
+TratadorDeDevolucao --> FachadaCirculacao
+FachadaCirculacao --> Relacionamento
+FachadaCirculacao --> Movimentacao
+FachadaCirculacao --> Acervo
+FachadaCirculacao ..> Livro
+FachadaCirculacao --> UnidadeDeTrabalho
+FachadaCirculacao ..> Comprovante : <<cria>>
+@enduml
+
+@startuml R05_observer
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R05 - Observer
+class PublicadorDevolucao <<Sujeito>> { + registrar(o : OuvinteDevolucao)\n+ publicar(e : EventoDevolucao)\n+ falhas() }
+interface OuvinteDevolucao <<Observador>> { + nome() : String\n+ aoDevolver(e : EventoDevolucao) }
+class OuvinteInspecao
+class OuvinteMulta
+class OuvinteIndicadores
+class OuvinteEmail
+class EventoDevolucao <<record>> { idDevolucao, idLivro, idEstudante,\ncpf, email, vencimento, dataDevolucao }
+class FachadaCirculacao { + registrarDevolucao(...) }
+PublicadorDevolucao o--> "*" OuvinteDevolucao
+OuvinteDevolucao <|.. OuvinteInspecao
+OuvinteDevolucao <|.. OuvinteMulta
+OuvinteDevolucao <|.. OuvinteIndicadores
+OuvinteDevolucao <|.. OuvinteEmail
+FachadaCirculacao --> PublicadorDevolucao : publica apos commit
+PublicadorDevolucao ..> EventoDevolucao
+OuvinteInspecao --> FilaDeInspecao
+OuvinteMulta --> ServicoDeMultas
+OuvinteIndicadores --> Indicadores
+OuvinteEmail --> ServicoEmail
+@enduml
+
+@startuml R06_command
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R06 - Command
+abstract class SolicitacaoCirculacao <<Comando>> {
+  - id : String
+  - autor : String
+  - criadaEm : Instant
+  + {abstract} executar(r : FachadaCirculacao) : Comprovante
+}
+class SolicitacaoReserva
+class SolicitacaoRenovacao
+class ExecutorDeSolicitacoes <<Invocador>> {
+  - execucoes : ConcurrentMap<String, FutureTask>
+  + executar(s : SolicitacaoCirculacao) : Comprovante
+}
+class TelaTerminal <<Cliente>>
+class TratadorDeEmprestimo { + submeter(s) : Comprovante }
+class FachadaCirculacao <<Receptor>>
+SolicitacaoCirculacao <|-- SolicitacaoReserva
+SolicitacaoCirculacao <|-- SolicitacaoRenovacao
+TelaTerminal ..> SolicitacaoCirculacao : <<cria>>
+TelaTerminal --> TratadorDeEmprestimo
+TratadorDeEmprestimo --> ExecutorDeSolicitacoes
+ExecutorDeSolicitacoes --> FachadaCirculacao
+SolicitacaoCirculacao ..> FachadaCirculacao
+@enduml
+
+@startuml R07_template_method
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R07 - Template Method
+abstract class "CadastroTemplate<D, E>" as CT {
+  + incluir(d : D) : ResultadoCadastro {leaf}
+  # {abstract} buscarExistente(d) : Optional<E>
+  # {abstract} validar(d)
+  # verificarPreRequisitos(d) <<gancho>>
+  # {abstract} criar(d) : E
+  # {abstract} armazenar(e)
+  # {abstract} apresentar(e, novo) : ResultadoCadastro
+}
+class CadastroDeLivro
+class CadastroDePessoa
+class CadastroDeEstudante { # verificarPreRequisitos(d) }
+class CadastroDeAtendente { # verificarPreRequisitos(d) }
+interface iLivro
+interface iPessoa
+interface iEstudante
+interface iAtendente
+CT <|-- CadastroDeLivro
+CT <|-- CadastroDePessoa
+CT <|-- CadastroDeEstudante
+CT <|-- CadastroDeAtendente
+iLivro <|.. TratadorDeAcervo
+iPessoa <|.. TratadorDePessoa
+iEstudante <|.. TratadorDeEstudante
+iAtendente <|.. TratadorDeAtendente
+TratadorDeAcervo --> CadastroDeLivro
+TratadorDePessoa --> CadastroDePessoa
+TratadorDeEstudante --> CadastroDeEstudante
+TratadorDeAtendente --> CadastroDeAtendente
+@enduml
+
+@startuml R08_abstract_factory
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R08 - Abstract Factory
+interface FabricaDeDados <<Fabrica abstrata>> {
+  + unidadeDeTrabalho() : UnidadeDeTrabalho
+  + repositorioLivro() : RepositorioLivro
+  + repositorioMovimentacao() : RepositorioMovimentacao
+  + repositorioRelacionamento() : RepositorioRelacionamento
+}
+class FabricaEmMemoria
+class FabricaRelacional
+interface UnidadeDeTrabalho
+interface RepositorioLivro
+interface RepositorioMovimentacao
+interface RepositorioRelacionamento
+class UnidadeDeTrabalhoEmMemoria
+class RepositorioLivroEmMemoria
+class RepositorioMovimentacaoEmMemoria
+class RepositorioRelacionamentoEmMemoria
+class UnidadeDeTrabalhoJdbc { - conexao : Connection }
+class RepositorioLivroJdbc
+class RepositorioMovimentacaoJdbc
+class RepositorioRelacionamentoJdbc
+class SeletorDeFabrica { + {static} paraPerfil(p : Perfil, cfg) : FabricaDeDados }
+FabricaDeDados <|.. FabricaEmMemoria
+FabricaDeDados <|.. FabricaRelacional
+UnidadeDeTrabalho <|.. UnidadeDeTrabalhoEmMemoria
+UnidadeDeTrabalho <|.. UnidadeDeTrabalhoJdbc
+RepositorioLivro <|.. RepositorioLivroEmMemoria
+RepositorioLivro <|.. RepositorioLivroJdbc
+RepositorioMovimentacao <|.. RepositorioMovimentacaoEmMemoria
+RepositorioMovimentacao <|.. RepositorioMovimentacaoJdbc
+RepositorioRelacionamento <|.. RepositorioRelacionamentoEmMemoria
+RepositorioRelacionamento <|.. RepositorioRelacionamentoJdbc
+FabricaEmMemoria ..> UnidadeDeTrabalhoEmMemoria : <<cria 1>>
+FabricaRelacional ..> UnidadeDeTrabalhoJdbc : <<cria 1>>
+RepositorioLivroJdbc --> UnidadeDeTrabalhoJdbc
+RepositorioMovimentacaoJdbc --> UnidadeDeTrabalhoJdbc
+RepositorioRelacionamentoJdbc --> UnidadeDeTrabalhoJdbc
+RepositorioLivroEmMemoria --> UnidadeDeTrabalhoEmMemoria
+RepositorioMovimentacaoEmMemoria --> UnidadeDeTrabalhoEmMemoria
+RepositorioRelacionamentoEmMemoria --> UnidadeDeTrabalhoEmMemoria
+SeletorDeFabrica ..> FabricaDeDados
+@enduml
+
+@startuml R09_decorator
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R09 - Decorator
+interface ConsultaAcervo <<Componente>> { + consultarMetadados(id) : Optional<MetadadosLivro> }
+class ConsultaAcervoOriginal <<Componente concreto>>
+abstract class ConsultaAcervoDecorador <<Decorador>> { # embrulhado : ConsultaAcervo }
+class ConsultaComMedicao { + totalDeConsultas() : long }
+class ConsultaComCache { + acertos() : long\n+ falhasDeCache() : long }
+interface ArmazenamentoCache
+class MetadadosLivro <<record>> { idLivro, titulo, autor }
+ConsultaAcervo <|.. ConsultaAcervoOriginal
+ConsultaAcervo <|.. ConsultaAcervoDecorador
+ConsultaAcervoDecorador o--> ConsultaAcervo : embrulhado
+ConsultaAcervoDecorador <|-- ConsultaComMedicao
+ConsultaAcervoDecorador <|-- ConsultaComCache
+ConsultaComCache --> ArmazenamentoCache
+ConsultaAcervoOriginal --> Acervo
+note bottom of ConsultaComCache : guarda so MetadadosLivro (sem estado)
+@enduml
+
+@startuml R10_composite
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+hide empty members
+title R10 - Composite
+abstract class NoDoAcervo <<Componente>> {
+  + {abstract} contarLivros() : int
+  + {abstract} listarLivros() : List<String>
+}
+class GrupoDoAcervo <<Composto>> {
+  - tipo : TipoGrupo
+  + adicionar(g : GrupoDoAcervo)
+  + adicionarLivro(idLivro : String)
+}
+class ItemDoAcervo <<Folha>> { - idLivro : String }
+enum TipoGrupo {
+  UNIDADE
+  SECAO
+  SUBSECAO
+}
+class OrganizacaoDoAcervo {
+  - grupoDoLivro : Map<String, GrupoDoAcervo>
+  + criarUnidade(nome)
+  + moverLivro(idLivro, destino)
+}
+NoDoAcervo <|-- GrupoDoAcervo
+NoDoAcervo <|-- ItemDoAcervo
+GrupoDoAcervo o--> "*" NoDoAcervo : filhos
+GrupoDoAcervo --> TipoGrupo
+OrganizacaoDoAcervo --> "*" GrupoDoAcervo
+@enduml
